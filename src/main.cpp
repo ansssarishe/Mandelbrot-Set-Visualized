@@ -34,6 +34,20 @@ const int SCR_HEIGHT = 900;
 
 unsigned int thread_count = std::thread::hardware_concurrency();
 
+sf::Color getColor(int iter, int max_iterations) {
+    if (iter == max_iterations) {
+        return sf::Color::Black;
+    }
+    // Map iteration count to a hue value (0 to 360)
+    double hue = fmod(sqrt(static_cast<double>(iter)) * 360.0, 360.0);
+    // A simple way to convert HSV/HSL to RGB is needed here
+    // For simplicity, here's a basic rainbow-like effect:
+    uint8_t r = static_cast<uint8_t>(sin(0.05 * iter + 0) * 127 + 128);
+    uint8_t g = static_cast<uint8_t>(sin(0.05 * iter + 2) * 127 + 128);
+    uint8_t b = static_cast<uint8_t>(sin(0.05 * iter + 4) * 127 + 128);
+    return sf::Color(r, g, b);
+}
+
 void calculate_region(int max_iterations, double minX, double maxX, double minY, double maxY,
                       int T_min, int T_max, sf::Image& image);
 
@@ -57,22 +71,25 @@ void delegation(int max_iterations, double minX, double maxX, double minY, doubl
 }
 
 void calculate_region(int max_iterations, double minX, double maxX, double minY, double maxY, int T_min, int T_max, sf::Image& image){
+    const double dx = (maxX - minX) / WIDTH;
+    const double dy = (maxY - minY) / HEIGHT;
+
     for(unsigned int py = T_min; py < T_max; py++){
         for(unsigned int px = 0; px < WIDTH; px++){
-            double x = minX + px * (maxX - minX) / WIDTH;
-            double y = minY + py * (maxY - minY) / HEIGHT;
+            double x = minX + px * dx;
+            double y = minY + py * dy;
 
-            Complex c(x, y);
-            Complex z(0.0, 0.0);
+            std::complex<double> c(x, y);
+            std::complex<double> z(0.0, 0.0);
 
             int iter = 0;
-            while(iter < max_iterations && z.magnitudeSquared() <= 4.0){
+            while(iter < max_iterations && std::norm(z) <= 4.0){
                 z = z * z + c;
                 iter++;
             }
 
             unsigned int num = static_cast<unsigned int>(255.0 * iter / max_iterations);
-            sf::Color color(num, num, num);
+            sf::Color color = getColor(iter, max_iterations);
 
             image.setPixel({px, py}, color);
         }
@@ -80,7 +97,7 @@ void calculate_region(int max_iterations, double minX, double maxX, double minY,
 }
 
 int main() {
-    int max_iterations = 120;
+    int max_iterations = 40;
 
     sf::RenderWindow screen(sf::VideoMode({SCR_WIDTH, SCR_HEIGHT}), "Mandelbrot");
     screen.setFramerateLimit(60);
@@ -120,7 +137,7 @@ int main() {
             }
         }
 
-        if (zoom >= 4.f || zoom <= 0.25f) {
+        if (zoom >= 2.f || zoom <= 0.5f) {
             // Step 1: Get current view bounds
             sf::Vector2f center = view.getCenter();
             sf::Vector2f size = view.getSize();
@@ -136,6 +153,8 @@ int main() {
             double newMinY = minY + (top    / HEIGHT) * (maxY - minY);
             double newMaxY = minY + (bottom / HEIGHT) * (maxY - minY);
 
+            max_iterations = static_cast<int>(max_iterations * 1.5);
+            if (max_iterations > 2000) max_iterations = 2000;
             // Step 3: Recalculate Mandelbrot
             delegation(max_iterations, newMinX, newMaxX, newMinY, newMaxY, image);
             texture.loadFromImage(image);
