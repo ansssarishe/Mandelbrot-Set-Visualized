@@ -19,12 +19,19 @@ struct Complex {
 
 const int WIDTH = 1200;
 const int HEIGHT = 900;
+double aspectRatio = static_cast<double>(WIDTH) / HEIGHT;
+double scaleX = 3.0;
+double scaleY = scaleX / aspectRatio;
+double minX = -2.0;
+double maxX = minX + scaleX;
+double minY = -scaleY / 2;
+double maxY = scaleY / 2;
 
 void calculation(int max_iterations, sf::Image& image){
     for(unsigned int py = 0; py < HEIGHT; py++){
         for(unsigned int px = 0; px < WIDTH; px++){
-            double x = (double)px / WIDTH * 3.0 - 2.0;
-            double y = (double)py / HEIGHT * 3.0 - 1.5;
+            double x = minX + px * (maxX - minX) / WIDTH;
+            double y = minY + py * (maxY - minY) / HEIGHT;
 
             Complex c(x, y);
             Complex z(0.0, 0.0);
@@ -46,10 +53,9 @@ void calculation(int max_iterations, sf::Image& image){
 
 
 int main() {
-    const sf::VideoMode desktopMode = sf::VideoMode::getDesktopMode();
     int max_iterations = 120;
 
-    sf::RenderWindow screen(desktopMode, "Mandelbrot");
+    sf::RenderWindow screen(sf::VideoMode({WIDTH, HEIGHT}), "Mandelbrot");
     screen.setFramerateLimit(60);
 
     sf::Image image({WIDTH, HEIGHT}, sf::Color::Black);
