@@ -17,8 +17,8 @@ struct Complex {
     double magnitudeSquared() const { return real * real + imag * imag; }
 };
 
-const int WIDTH = 1200;
-const int HEIGHT = 900;
+const int WIDTH = 4000;
+const int HEIGHT = 3000;
 double aspectRatio = static_cast<double>(WIDTH) / HEIGHT;
 double scaleX = 3.0;
 double scaleY = scaleX / aspectRatio;
@@ -27,7 +27,12 @@ double maxX = minX + scaleX;
 double minY = -scaleY / 2;
 double maxY = scaleY / 2;
 
-void calculation(int max_iterations, sf::Image& image){
+
+
+const int SCR_WIDTH = 1200;
+const int SCR_HEIGHT = 900;
+
+void calculation(int max_iterations, double minX, double maxX, double minY, double maxY, sf::Image& image){
     for(unsigned int py = 0; py < HEIGHT; py++){
         for(unsigned int px = 0; px < WIDTH; px++){
             double x = minX + px * (maxX - minX) / WIDTH;
@@ -55,22 +60,76 @@ void calculation(int max_iterations, sf::Image& image){
 int main() {
     int max_iterations = 120;
 
-    sf::RenderWindow screen(sf::VideoMode({WIDTH, HEIGHT}), "Mandelbrot");
+    sf::RenderWindow screen(sf::VideoMode({SCR_WIDTH, SCR_HEIGHT}), "Mandelbrot");
     screen.setFramerateLimit(60);
 
     sf::Image image({WIDTH, HEIGHT}, sf::Color::Black);
-    calculation(max_iterations, image);
+    calculation(max_iterations, minX, maxX, minY, maxY, image);
 
     sf::Texture texture;
     texture.loadFromImage(image);
     sf::Sprite sprite(texture);
 
+    sf::View view({WIDTH / 2, HEIGHT / 2}, {SCR_WIDTH, SCR_HEIGHT});
+    screen.setView(view);
+
+    float zoom = 1;
+    float zoom_scale = 1.25;
+    
+
     while (screen.isOpen()) {
         while (const auto event = screen.pollEvent()) {
-            if (event->is<sf::Event::Closed>() || (event->is<sf::Event::KeyPressed>() && event->getIf<sf::Event::KeyPressed>()->code == sf::Keyboard::Key::Escape)) {
+            if(event->is<sf::Event::Closed>()){
                 screen.close();
             }
+
+            if(event->is<sf::Event::KeyPressed>()){
+                switch(event->getIf<sf::Event::KeyPressed>()->code){
+                    case sf::Keyboard::Key::Escape: screen.close(); break;
+
+                    case sf::Keyboard::Key::W: view.move({0.f, -100.f}); break;
+                    case sf::Keyboard::Key::S: view.move({0.f, 100.f}); break;
+                    case sf::Keyboard::Key::A: view.move({-100.f, 0.f}); break;
+                    case sf::Keyboard::Key::D: view.move({100.f, 0.f}); break;
+
+                    case sf::Keyboard::Key::J: zoom *= zoom_scale; view.zoom(zoom_scale); break;
+                    case sf::Keyboard::Key::K: zoom /= zoom_scale; view.zoom(1.f/zoom_scale); break;
+                }
+            }
         }
+
+        if (zoom >= 4.f || zoom <= 0.25f) {
+            // Step 1: Get current view bounds
+            sf::Vector2f center = view.getCenter();
+            sf::Vector2f size = view.getSize();
+
+            float left   = center.x - size.x / 2.f;
+            float right  = center.x + size.x / 2.f;
+            float top    = center.y - size.y / 2.f;
+            float bottom = center.y + size.y / 2.f;
+
+            // Step 2: Convert to complex plane
+            double newMinX = minX + (left   / WIDTH) * (maxX - minX);
+            double newMaxX = minX + (right  / WIDTH) * (maxX - minX);
+            double newMinY = minY + (top    / HEIGHT) * (maxY - minY);
+            double newMaxY = minY + (bottom / HEIGHT) * (maxY - minY);
+
+            // Step 3: Recalculate Mandelbrot
+            calculation(max_iterations, newMinX, newMaxX, newMinY, newMaxY, image);
+            texture.loadFromImage(image);
+            sprite.setTexture(texture);
+
+            // Step 4: Update global bounds & reset view
+            minX = newMinX; maxX = newMaxX;
+            minY = newMinY; maxY = newMaxY;
+
+            view.setCenter({WIDTH / 2.f, HEIGHT / 2.f});
+            view.setSize({SCR_WIDTH, SCR_HEIGHT});
+            zoom = 1;
+        }
+
+
+        screen.setView(view);
         screen.clear();
         screen.draw(sprite);
         screen.display();
