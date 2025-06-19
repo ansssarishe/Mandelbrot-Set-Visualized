@@ -32,8 +32,32 @@ double maxY = scaleY / 2;
 const int SCR_WIDTH = 1200;
 const int SCR_HEIGHT = 900;
 
-void calculation(int max_iterations, double minX, double maxX, double minY, double maxY, sf::Image& image){
-    for(unsigned int py = 0; py < HEIGHT; py++){
+unsigned int thread_count = std::thread::hardware_concurrency();
+
+void calculate_region(int max_iterations, double minX, double maxX, double minY, double maxY,
+                      int T_min, int T_max, sf::Image& image);
+
+void delegation(int max_iterations, double minX, double maxX, double minY, double maxY, sf::Image& image){
+    unsigned int rows_per_thread = HEIGHT / thread_count;
+    std::vector<std::thread> threads;
+
+    for(int thread = 0; thread < thread_count; thread++){
+        int T_min = thread * rows_per_thread;
+        int T_max = (thread + 1) * rows_per_thread;
+
+        threads.emplace_back(calculate_region,
+                             max_iterations, minX, maxX, minY, maxY,
+                             T_min, T_max, std::ref(image));
+    }
+
+    for (auto& t : threads)
+    t.join();
+
+    threads.clear();
+}
+
+void calculate_region(int max_iterations, double minX, double maxX, double minY, double maxY, int T_min, int T_max, sf::Image& image){
+    for(unsigned int py = T_min; py < T_max; py++){
         for(unsigned int px = 0; px < WIDTH; px++){
             double x = minX + px * (maxX - minX) / WIDTH;
             double y = minY + py * (maxY - minY) / HEIGHT;
@@ -53,9 +77,7 @@ void calculation(int max_iterations, double minX, double maxX, double minY, doub
             image.setPixel({px, py}, color);
         }
     }
-
 }
-
 
 int main() {
     int max_iterations = 120;
@@ -64,7 +86,7 @@ int main() {
     screen.setFramerateLimit(60);
 
     sf::Image image({WIDTH, HEIGHT}, sf::Color::Black);
-    calculation(max_iterations, minX, maxX, minY, maxY, image);
+    delegation(max_iterations, minX, maxX, minY, maxY, image);
 
     sf::Texture texture;
     texture.loadFromImage(image);
@@ -115,7 +137,7 @@ int main() {
             double newMaxY = minY + (bottom / HEIGHT) * (maxY - minY);
 
             // Step 3: Recalculate Mandelbrot
-            calculation(max_iterations, newMinX, newMaxX, newMinY, newMaxY, image);
+            delegation(max_iterations, newMinX, newMaxX, newMinY, newMaxY, image);
             texture.loadFromImage(image);
             sprite.setTexture(texture);
 
